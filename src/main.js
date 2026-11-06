@@ -43,7 +43,7 @@ app.innerHTML = `
         <div class="planner-card" aria-labelledby="planner-heading">
           <div class="card-kicker">PLAN A RIDE <span>01</span></div>
           <h2 id="planner-heading">Where are you headed?</h2>
-          <p class="card-intro">A rough address or a landmark is enough.</p>
+          <p class="card-intro">A building, society, station, or landmark works. Add a neighbourhood if it’s private.</p>
 
           <form id="trip-form">
             <div class="location-stack">
@@ -206,13 +206,79 @@ function showError(message) {
   $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+const PLACE_HINTS = [
+  {
+    match: /ashoka\s+chandra\s+enclave/i,
+    fallbackQuery: 'Lakdikapul, Hyderabad, Telangana, India',
+    label: 'Ashoka Chandra Enclave · Lakdikapul, Hyderabad'
+  }
+];
+
+function normalizedText(value) {
+  return value.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function candidateScore(candidate, query) {
+  const queryTokens = normalizedText(query).split(' ').filter((token) => token.length > 2);
+  const searchable = normalizedText(`${candidate.name} ${candidate.label} ${candidate.city || ''} ${candidate.state || ''}`);
+  const nameText = normalizedText(candidate.name || '');
+  const tokenHits = queryTokens.filter((token) => searchable.includes(token)).length;
+  const nameHits = queryTokens.filter((token) => nameText.includes(token)).length;
+  const typeBoost = { locality: 1.5, house: 1.2, commercial: 1.1, building: 1, street: 0.7, other: 0.3, construction: -1.5 }[candidate.type] || 0;
+  const exactBoost = searchable.includes(normalizedText(query)) ? 3 : 0;
+  const stateBoost = candidate.state && /telangana|hyderabad/i.test(candidate.state) && /sattva|knowledge/i.test(query) ? 2 : 0;
+  return tokenHits + nameHits * 0.8 + typeBoost + exactBoost + stateBoost;
+}
+
+function fromNominatim(place) {
+  return {
+    lat: Number(place.lat), lon: Number(place.lon), name: place.name || place.display_name.split(',')[0],
+    label: place.display_name, type: place.type || place.addresstype || 'place',
+    city: place.address?.city || place.address?.town || place.address?.municipality || '',
+    state: place.address?.state || ''
+  };
+}
+
+function fromPhoton(feature) {
+  const properties = feature.properties || {};
+  const coordinates = feature.geometry?.coordinates || [];
+  const area = [properties.street, properties.locality, properties.district, properties.city, properties.state, properties.country].filter(Boolean);
+  return {
+    lat: Number(coordinates[1]), lon: Number(coordinates[0]), name: properties.name || properties.street || '',
+    label: [properties.name, ...area].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(', '),
+    type: properties.type || 'place', city: properties.city || properties.locality || '', state: properties.state || ''
+  };
+}
+
+async function searchPlaces(query) {
+  const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`;
+  const photonUrl = `https://photon.komoot.io/api/?limit=8&q=${encodeURIComponent(query)}`;
+  const responses = await Promise.allSettled([
+    fetch(nominatimUrl, { headers: { Accept: 'application/json' } }).then((response) => response.ok ? response.json() : []),
+    fetch(photonUrl, { headers: { Accept: 'application/json' } }).then((response) => response.ok ? response.json() : { features: [] })
+  ]);
+  const nominatimPlaces = responses[0].status === 'fulfilled' ? responses[0].value.map(fromNominatim) : [];
+  const photonPlaces = responses[1].status === 'fulfilled' ? responses[1].value.features.map(fromPhoton) : [];
+  const seen = new Set();
+  return [...nominatimPlaces, ...photonPlaces].filter((place) => {
+    const key = `${place.lat.toFixed(4)}:${place.lon.toFixed(4)}`;
+    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => candidateScore(b, query) - candidateScore(a, query));
+}
+
 async function geocode(query) {
-  const endpoint = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`;
-  const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error('Place lookup is temporarily unavailable.');
-  const places = await response.json();
-  if (!places.length) throw new Error(`We couldn't find “${query}”. Try adding a city or country.`);
-  return { lat: Number(places[0].lat), lon: Number(places[0].lon), label: places[0].display_name };
+  let candidates = await searchPlaces(query);
+  let selected = candidates[0];
+  const hint = PLACE_HINTS.find((item) => item.match.test(query));
+  if (hint) {
+    const fallbackCandidates = await searchPlaces(hint.fallbackQuery);
+    if (fallbackCandidates[0]) selected = fallbackCandidates[0];
+    if (selected) selected.label = hint.label;
+  }
+  if (!selected) throw new Error(`We couldn't find “${query}”. Try adding a neighbourhood, city, or country.`);
+  return selected;
 }
 
 async function getRoute(origin, destination) {
