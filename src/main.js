@@ -43,7 +43,7 @@ app.innerHTML = `
         <div class="planner-card" aria-labelledby="planner-heading">
           <div class="card-kicker">PLAN A RIDE <span>01</span></div>
           <h2 id="planner-heading">Where are you headed?</h2>
-          <p class="card-intro">A building, society, station, or landmark works. Add a neighbourhood if it’s private.</p>
+          <p class="card-intro">Type a place, then choose the exact building, locality, or landmark from the dropdown.</p>
 
           <form id="trip-form">
             <div class="location-stack">
@@ -52,11 +52,13 @@ app.innerHTML = `
                 <span class="field-icon origin-icon">${icons.pin}</span>
                 <input id="origin" name="origin" autocomplete="off" placeholder="Origin, station, or landmark" required />
                 <span class="location-stem"></span>
+                <div class="place-suggestions" id="origin-suggestions" role="listbox" hidden></div>
               </label>
               <label class="field location-field">
                 <span class="field-label">To</span>
                 <span class="field-icon destination-icon">${icons.pin}</span>
                 <input id="destination" name="destination" autocomplete="off" placeholder="Destination, station, or landmark" required />
+                <div class="place-suggestions" id="destination-suggestions" role="listbox" hidden></div>
               </label>
             </div>
 
@@ -79,7 +81,7 @@ app.innerHTML = `
               <button class="primary-button" type="submit">Find the shady side <span class="button-arrow">${icons.arrow}</span></button>
               <button class="sample-link" type="button" id="sample-trip">Try a sample route <span aria-hidden="true">→</span></button>
             </div>
-            <p class="form-footnote"><span class="footnote-lock">○</span> No account. No paid map key. Just a better seat.</p>
+            <p class="form-footnote"><span class="footnote-lock">○</span> No account. Pick the exact place before we route.</p>
           </form>
         </div>
       </section>
@@ -171,6 +173,8 @@ let selectedMode = 'car';
 let map;
 let routeLayer;
 let routeData;
+const placeSelections = { origin: null, destination: null };
+const suggestionTimers = { origin: null, destination: null };
 
 function toDateTimeLocal(date) {
   const pad = (value) => String(value).padStart(2, '0');
@@ -179,6 +183,59 @@ function toDateTimeLocal(date) {
 
 function escapeHtml(value) {
   return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+}
+
+function placeTitle(place) {
+  return place.name || place.label.split(',')[0];
+}
+
+function hideSuggestions(field) {
+  const element = $(`#${field}-suggestions`);
+  element.hidden = true;
+  element.innerHTML = '';
+}
+
+function renderSuggestions(field, candidates) {
+  const element = $(`#${field}-suggestions`);
+  const input = $(`#${field}`);
+  const places = candidates.slice(0, 6);
+  if (!places.length) {
+    hideSuggestions(field);
+    return;
+  }
+  element.innerHTML = places.map((place, index) => `<button type="button" class="place-option" role="option" data-place-index="${index}"><strong>${escapeHtml(placeTitle(place))}</strong><span>${escapeHtml(place.label)}</span></button>`).join('');
+  element.hidden = false;
+  element.querySelectorAll('.place-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      const place = places[Number(button.dataset.placeIndex)];
+      input.value = place.label;
+      placeSelections[field] = { query: place.label, place };
+      hideSuggestions(field);
+    });
+  });
+}
+
+function attachPlaceSearch(field) {
+  const input = $(`#${field}`);
+  input.addEventListener('input', () => {
+    placeSelections[field] = null;
+    clearTimeout(suggestionTimers[field]);
+    hideSuggestions(field);
+    const query = input.value.trim();
+    if (query.length < 2) return;
+    suggestionTimers[field] = setTimeout(async () => {
+      const near = field === 'destination' ? placeSelections.origin?.place : null;
+      try {
+        const candidates = await searchPlaces(query, near);
+        if (input.value.trim() === query) renderSuggestions(field, candidates);
+      } catch (error) {
+        hideSuggestions(field);
+      }
+    }, 280);
+  });
+  input.addEventListener('focus', () => {
+    if (input.value.trim().length >= 2 && !placeSelections[field]) input.dispatchEvent(new Event('input'));
+  });
 }
 
 function setStatus(status) {
@@ -273,8 +330,13 @@ async function searchPlaces(query, near = null) {
   ]);
   const nominatimPlaces = responses[0].status === 'fulfilled' ? responses[0].value.map(fromNominatim) : [];
   const photonPlaces = responses[1].status === 'fulfilled' ? responses[1].value.features.map(fromPhoton) : [];
+  const hint = PLACE_HINTS.find((item) => item.match.test(query));
+  let fallbackPlaces = [];
+  if (hint) {
+    fallbackPlaces = (await searchPlaces(hint.fallbackQuery, near)).slice(0, 1).map((place) => ({ ...place, name: query, label: hint.label }));
+  }
   const seen = new Set();
-  return [...nominatimPlaces, ...photonPlaces].filter((place) => {
+  return [...fallbackPlaces, ...nominatimPlaces, ...photonPlaces].filter((place) => {
     const key = `${place.lat.toFixed(4)}:${place.lon.toFixed(4)}`;
     if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon) || seen.has(key)) return false;
     seen.add(key);
@@ -446,6 +508,15 @@ function renderResults(origin, destination, route, analysis, departureDate) {
   setStatus('results');
 }
 
+async function requireSelectedPlace(field, query, near = null) {
+  const selected = placeSelections[field];
+  if (selected && selected.query === query) return selected.place;
+  const candidates = await searchPlaces(query, near);
+  renderSuggestions(field, candidates);
+  if (!candidates.length) throw new Error(`We couldn't find “${query}”. Try adding a neighbourhood, city, or country.`);
+  throw new Error(`Choose the exact ${field === 'origin' ? 'starting point' : 'destination'} from the dropdown before routing.`);
+}
+
 async function calculateTrip({ sample = false } = {}) {
   const form = $('#trip-form');
   if (!sample && !form.reportValidity()) return;
@@ -453,9 +524,6 @@ async function calculateTrip({ sample = false } = {}) {
   const destinationQuery = $('#destination').value.trim();
   const departureDate = new Date($('#departure').value);
   if (!sample && (!originQuery || !destinationQuery || Number.isNaN(departureDate.getTime()))) return;
-  setStatus('loading');
-  $('#results-title').textContent = 'Reading your route.';
-  $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   try {
     let origin;
     let destination;
@@ -465,10 +533,13 @@ async function calculateTrip({ sample = false } = {}) {
       setLoadingDetail('Tracing a sample road through Bengaluru.');
     } else {
       setLoadingDetail('Finding your starting point.');
-      origin = await geocode(originQuery);
+      origin = await requireSelectedPlace('origin', originQuery);
       setLoadingDetail('Finding your destination.');
-      destination = await geocode(destinationQuery, origin);
+      destination = await requireSelectedPlace('destination', destinationQuery, origin);
     }
+    setStatus('loading');
+    $('#results-title').textContent = 'Reading your route.';
+    $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
     setLoadingDetail('Tracing the road between them.');
     const route = await getRoute(origin, destination);
     setLoadingDetail('Comparing the route with the sun.');
@@ -495,7 +566,12 @@ $('#trip-form').addEventListener('submit', (event) => {
 $('#sample-trip').addEventListener('click', () => {
   $('#origin').value = 'Koramangala, Bengaluru';
   $('#destination').value = 'Indiranagar, Bengaluru';
+  placeSelections.origin = null;
+  placeSelections.destination = null;
   calculateTrip({ sample: true });
 });
+
+attachPlaceSearch('origin');
+attachPlaceSearch('destination');
 
 $('#error-dismiss').addEventListener('click', () => setStatus('empty'));

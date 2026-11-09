@@ -17,6 +17,8 @@ SunSide is designed for short daily trips such as **home to office**, apartment 
 ## What SunSide does
 
 - Accepts origin and destination place names, addresses, buildings, apartment societies, stations, and landmarks.
+- Shows ranked place suggestions with the full locality and address so users can choose the exact same-name building or hotel.
+- Requires an explicit place selection before routing; SunSide never silently chooses the first ambiguous match.
 - Uses the departure date and time to model the sun during the actual journey.
 - Supports car and bus travel modes. The current free routing fallback uses road geometry for both modes and clearly labels the estimate.
 - Calculates a drivable route and estimated travel time.
@@ -87,7 +89,7 @@ The build output is written to `dist`.
 
 ## Mapping and routing notes
 
-OpenStreetMap is open data, not a guarantee that every apartment complex or private society has a precise searchable record. Nominatim and Photon can return multiple places with the same name, especially for common names such as “Brindavan Apartments.” SunSide therefore uses multiple providers and candidate ranking, but users should add a neighborhood, city, or country when a place name is ambiguous.
+OpenStreetMap is open data, not a guarantee that every apartment complex or private society has a precise searchable record. Nominatim and Photon can return multiple places with the same name, especially for common names such as “Brindavan Apartments” or “Dwaraka Hotel.” SunSide therefore uses multiple providers, nearby-place ranking, and an explicit candidate dropdown. The route cannot start until the user confirms the exact result. Adding a neighborhood, city, or country can still narrow the list faster.
 
 The public Nominatim and Photon demo endpoints are intended for reasonable interactive use and may throttle heavy traffic. A larger deployment should move geocoding behind a server-side proxy with caching, use a managed geocoding provider, or run a dedicated geocoder instance. See the provider policies before operating this project at scale.
 
