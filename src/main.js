@@ -218,7 +218,18 @@ function normalizedText(value) {
   return value.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function candidateScore(candidate, query) {
+function distanceBetween(a, b) {
+  if (!a || !b) return null;
+  const rad = Math.PI / 180;
+  const latitudeDelta = (b.lat - a.lat) * rad;
+  const longitudeDelta = (b.lon - a.lon) * rad;
+  const latitudeOne = a.lat * rad;
+  const latitudeTwo = b.lat * rad;
+  const haversine = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(latitudeOne) * Math.cos(latitudeTwo) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function candidateScore(candidate, query, near) {
   const queryTokens = normalizedText(query).split(' ').filter((token) => token.length > 2);
   const searchable = normalizedText(`${candidate.name} ${candidate.label} ${candidate.city || ''} ${candidate.state || ''}`);
   const nameText = normalizedText(candidate.name || '');
@@ -227,7 +238,9 @@ function candidateScore(candidate, query) {
   const typeBoost = { locality: 1.5, house: 1.2, commercial: 1.1, building: 1, street: 0.7, other: 0.3, construction: -1.5 }[candidate.type] || 0;
   const exactBoost = searchable.includes(normalizedText(query)) ? 3 : 0;
   const stateBoost = candidate.state && /telangana|hyderabad/i.test(candidate.state) && /sattva|knowledge/i.test(query) ? 2 : 0;
-  return tokenHits + nameHits * 0.8 + typeBoost + exactBoost + stateBoost;
+  const distanceKm = distanceBetween(candidate, near);
+  const proximityBoost = distanceKm === null ? 0 : Math.max(-4, 5 - Math.log10(Math.max(1, distanceKm)) * 2.5);
+  return tokenHits + nameHits * 0.8 + typeBoost + exactBoost + stateBoost + proximityBoost;
 }
 
 function fromNominatim(place) {
@@ -250,9 +263,10 @@ function fromPhoton(feature) {
   };
 }
 
-async function searchPlaces(query) {
+async function searchPlaces(query, near = null) {
   const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`;
-  const photonUrl = `https://photon.komoot.io/api/?limit=8&q=${encodeURIComponent(query)}`;
+  const nearbyParams = near ? `&lat=${encodeURIComponent(near.lat)}&lon=${encodeURIComponent(near.lon)}` : '';
+  const photonUrl = `https://photon.komoot.io/api/?limit=8${nearbyParams}&q=${encodeURIComponent(query)}`;
   const responses = await Promise.allSettled([
     fetch(nominatimUrl, { headers: { Accept: 'application/json' } }).then((response) => response.ok ? response.json() : []),
     fetch(photonUrl, { headers: { Accept: 'application/json' } }).then((response) => response.ok ? response.json() : { features: [] })
@@ -265,15 +279,18 @@ async function searchPlaces(query) {
     if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon) || seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).sort((a, b) => candidateScore(b, query) - candidateScore(a, query));
+  }).sort((a, b) => candidateScore(b, query, near) - candidateScore(a, query, near));
 }
 
-async function geocode(query) {
-  let candidates = await searchPlaces(query);
+async function geocode(query, near = null) {
+  const contextualQuery = near && !/[\d,]|\b(hyderabad|bengaluru|bangalore|chennai|mumbai|delhi|pune|kolkata|india|telangana|karnataka|tamil|maharashtra)\b/i.test(query)
+    ? `${query}, ${near.city || near.state || ''}`.replace(/, $/, '')
+    : query;
+  let candidates = await searchPlaces(contextualQuery, near);
   let selected = candidates[0];
   const hint = PLACE_HINTS.find((item) => item.match.test(query));
   if (hint) {
-    const fallbackCandidates = await searchPlaces(hint.fallbackQuery);
+    const fallbackCandidates = await searchPlaces(hint.fallbackQuery, near);
     if (fallbackCandidates[0]) selected = fallbackCandidates[0];
     if (selected) selected.label = hint.label;
   }
@@ -450,7 +467,7 @@ async function calculateTrip({ sample = false } = {}) {
       setLoadingDetail('Finding your starting point.');
       origin = await geocode(originQuery);
       setLoadingDetail('Finding your destination.');
-      destination = await geocode(destinationQuery);
+      destination = await geocode(destinationQuery, origin);
     }
     setLoadingDetail('Tracing the road between them.');
     const route = await getRoute(origin, destination);
