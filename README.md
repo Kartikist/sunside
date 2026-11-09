@@ -52,7 +52,7 @@ Useful search terms for this project include:
 3. **Sample the journey.** The route is divided into time-and-location checkpoints. A short trip gets a minimum number of checkpoints; longer trips get more samples up to a practical limit.
 4. **Calculate the sun.** A compact browser-side implementation based on NOAA solar-position calculations estimates solar elevation and azimuth for each checkpoint.
 5. **Compare left and right.** The app compares the sun’s direction to the vehicle’s route bearing. It counts meaningful left-side and right-side sun exposure and treats low-angle, front-facing, or rear-facing light as neutral.
-6. **Explain the result.** The side with less meaningful direct exposure becomes the recommendation. If the difference is too small, SunSide reports “No clear winner” rather than pretending to be precise.
+6. **Explain the result.** The side with less meaningful direct exposure always becomes the recommendation. If the edge is tiny, SunSide still names the mathematically better side but explains that either side is fine in practice.
 
 This is an estimate, not a guarantee of shade. Buildings, trees, window tint, road elevation, vehicle orientation, seat position, and local weather can all change the real experience.
 

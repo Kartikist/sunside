@@ -134,7 +134,7 @@ app.innerHTML = `
               <div><strong id="metric-coverage">—</strong><span>route analyzed</span></div>
               <div><strong id="metric-sun">—</strong><span>sun angle</span></div>
             </div>
-            <div class="recommendation-footnote">${icons.info}<span>We model the sun in 10–15 minute slices. “No clear winner” means both sides are within 8% of each other.</span></div>
+            <div class="recommendation-footnote">${icons.info}<span>We model the sun in 10–15 minute slices. A small edge means either side should feel nearly the same.</span></div>
           </aside>
         </div>
 
@@ -438,7 +438,7 @@ function analyzeRoute(route, departureDate) {
   }
 
   const analyzed = slices - neutral;
-  const shadeSide = analyzed === 0 || Math.abs(leftSun - rightSun) / Math.max(1, analyzed) < 0.08 ? 'neutral' : leftSun < rightSun ? 'left' : 'right';
+  const shadeSide = leftSun <= rightSun ? 'left' : 'right';
   const advantage = analyzed === 0 ? 0 : Math.round(Math.abs(leftSun - rightSun) / analyzed * 100);
   const coverage = Math.round((analyzed / slices) * 100);
   const avgElevation = observations.reduce((sum, item) => sum + Math.max(0, item.elevation), 0) / observations.length;
@@ -485,24 +485,24 @@ function renderMap(origin, destination, route) {
 
 function renderResults(origin, destination, route, analysis, departureDate) {
   const modeLabel = selectedMode.toUpperCase();
-  const isNeutral = analysis.shadeSide === 'neutral';
-  const recommendation = isNeutral ? 'No clear winner' : `${analysis.shadeSide === 'left' ? 'Left' : 'Right'} side`;
-  const sunlightSide = isNeutral ? 'both sides' : analysis.shadeSide === 'left' ? 'right' : 'left';
-  $('#results-title').textContent = isNeutral ? 'The light is pretty even.' : `Take the ${analysis.shadeSide} side.`;
+  const isMarginal = analysis.advantage < 8;
+  const recommendation = `${analysis.shadeSide === 'left' ? 'Left' : 'Right'} side`;
+  const sunlightSide = analysis.shadeSide === 'left' ? 'right' : 'left';
+  $('#results-title').textContent = `Take the ${analysis.shadeSide} side.`;
   $('#result-context').innerHTML = `<span>${escapeHtml(formatPlace(origin))}</span><i>→</i><span>${escapeHtml(formatPlace(destination))}</span>`;
   $('#map-status').textContent = `${durationLabel(route.duration)} · ${modeLabel.toLowerCase()} route`;
   $('#recommendation-mode').textContent = modeLabel;
-  $('#recommendation-icon').innerHTML = isNeutral ? icons.compass : icons.sun;
+  $('#recommendation-icon').innerHTML = icons.sun;
   $('#recommendation-title').textContent = recommendation;
-  $('#recommendation-copy').textContent = isNeutral ? 'The sun moves across the route rather than favoring one window for long enough to matter.' : `The sun lands mostly on the ${analysis.shadeSide === 'left' ? 'right' : 'left'} side of the vehicle, so the ${analysis.shadeSide} side gets the calmer ride.`;
-  $('#confidence-value').textContent = isNeutral ? '8% gap' : `${analysis.advantage}% edge`;
-  $('#confidence-bar').style.width = `${Math.max(8, Math.min(100, isNeutral ? 8 : analysis.advantage))}%`;
-  $('#confidence-copy').textContent = `${analysis.coverage}% of the route had a meaningful side signal`;
+  $('#recommendation-copy').textContent = isMarginal ? `The ${analysis.shadeSide} side receives slightly less modeled sun. The difference is small, so either side should feel nearly the same.` : `The sun lands mostly on the ${analysis.shadeSide === 'left' ? 'right' : 'left'} side of the vehicle, so the ${analysis.shadeSide} side gets the calmer ride.`;
+  $('#confidence-value').textContent = `${analysis.advantage}% edge`;
+  $('#confidence-bar').style.width = `${Math.max(8, Math.min(100, analysis.advantage))}%`;
+  $('#confidence-copy').textContent = isMarginal ? `${analysis.coverage}% analyzed · practically even` : `${analysis.coverage}% of the route had a meaningful side signal`;
   $('#metric-duration').textContent = durationLabel(route.duration);
   $('#metric-coverage').textContent = `${analysis.coverage}%`;
   $('#metric-sun').textContent = `${Math.round(analysis.avgElevation)}°`;
   $('#analysis-date').textContent = formatDate(departureDate);
-  $('#analysis-explanation').textContent = isNeutral ? `We checked ${analysis.slices} points along the route. The sun was side-on for ${analysis.coverage}% of the trip, but neither window stayed meaningfully calmer than the other.` : `Across ${analysis.slices} checkpoints, the sun favored the ${sunlightSide} window often enough to give the ${analysis.shadeSide} side a ${analysis.advantage}% shade edge. Higher sun angles and front/back light were treated as neutral.`;
+  $('#analysis-explanation').textContent = isMarginal ? `Across ${analysis.slices} checkpoints, the ${analysis.shadeSide} side received ${analysis.advantage}% less modeled sun. That difference is not meaningful in practice, so either side is fine; ${analysis.shadeSide} is the slight mathematical edge.` : `Across ${analysis.slices} checkpoints, the sun favored the ${sunlightSide} window often enough to give the ${analysis.shadeSide} side a ${analysis.advantage}% shade edge. Higher sun angles and front/back light were treated as neutral.`;
   renderTimeline(analysis.observations);
   renderMap(origin, destination, route);
   setStatus('results');
