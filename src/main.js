@@ -10,8 +10,6 @@ const icons = {
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>',
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3.2 2"></path></svg>',
-  car: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5.5 8.5 1.5-4h10l1.5 4M4 9.5h16v7H4zM7 16.5v2M17 16.5v2M7 12h.01M17 12h.01"></path></svg>',
-  bus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17V6.5C5 4 7.4 3 12 3s7 1 7 3.5V17M5 12h14M7.5 17v2M16.5 17v2M8 7h8M8 14h.01M16 14h.01"></path></svg>',
   compass: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="m15.3 8.7-2.1 4.5-4.5 2.1 2.1-4.5 4.5-2.1Z"></path></svg>',
   info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 10.5v5M12 7.5h.01"></path></svg>',
   refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8.5A7.5 7.5 0 1 0 19.5 15M19 4.5v4h-4"></path></svg>'
@@ -33,7 +31,7 @@ app.innerHTML = `
         <div class="hero-copy">
           <div class="eyebrow"><span class="eyebrow-line"></span> THE SHADY-SIDE CALCULATOR</div>
           <h1>Your commute,<br /><em>without the glare.</em></h1>
-          <p class="hero-lede">Tell SunSide where you’re going and when. We’ll tell you which side of the car or bus keeps the sun out of your eyes.</p>
+          <p class="hero-lede">Tell SunSide where you’re going and when. We’ll tell you which side of the ride keeps the sun out of your eyes.</p>
           <div class="hero-proof">
             <span class="proof-icon">${icons.compass}</span>
             <span>Built from your route, the sun’s position, and a little geometry.</span>
@@ -68,13 +66,6 @@ app.innerHTML = `
                 <span class="field-icon">${icons.clock}</span>
                 <input id="departure" name="departure" type="datetime-local" required />
               </label>
-              <div class="mode-control">
-                <span class="field-label">Riding in</span>
-                <div class="mode-toggle" role="group" aria-label="Travel mode">
-                  <button type="button" class="mode-option is-active" data-mode="car">${icons.car}<span>Car</span></button>
-                  <button type="button" class="mode-option" data-mode="bus">${icons.bus}<span>Bus</span></button>
-                </div>
-              </div>
             </div>
 
             <div class="form-actions">
@@ -119,7 +110,7 @@ app.innerHTML = `
           </div>
 
           <aside class="recommendation-card">
-            <div class="recommendation-topline"><span>THE SHORT ANSWER</span><span id="recommendation-mode">CAR</span></div>
+            <div class="recommendation-topline"><span>THE SHORT ANSWER</span><span>ROUTE</span></div>
             <div class="recommendation-icon" id="recommendation-icon">${icons.sun}</div>
             <div class="recommendation-label">Best side to sit on</div>
             <h3 id="recommendation-title">Right side</h3>
@@ -169,7 +160,6 @@ const now = new Date();
 now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5, 0, 0);
 $('#departure').value = toDateTimeLocal(now);
 
-let selectedMode = 'car';
 let map;
 let routeLayer;
 let routeData;
@@ -484,14 +474,12 @@ function renderMap(origin, destination, route) {
 }
 
 function renderResults(origin, destination, route, analysis, departureDate) {
-  const modeLabel = selectedMode.toUpperCase();
   const isMarginal = analysis.advantage < 8;
   const recommendation = `${analysis.shadeSide === 'left' ? 'Left' : 'Right'} side`;
   const sunlightSide = analysis.shadeSide === 'left' ? 'right' : 'left';
   $('#results-title').textContent = `Take the ${analysis.shadeSide} side.`;
   $('#result-context').innerHTML = `<span>${escapeHtml(formatPlace(origin))}</span><i>→</i><span>${escapeHtml(formatPlace(destination))}</span>`;
-  $('#map-status').textContent = `${durationLabel(route.duration)} · ${modeLabel.toLowerCase()} route`;
-  $('#recommendation-mode').textContent = modeLabel;
+  $('#map-status').textContent = `${durationLabel(route.duration)} · route`;
   $('#recommendation-icon').innerHTML = icons.sun;
   $('#recommendation-title').textContent = recommendation;
   $('#recommendation-copy').textContent = analysis.coverage === 0 ? `The sun was below the horizon or too low to favor a window during this trip. Either side is fine; ${analysis.shadeSide} is the default tie-breaker.` : isMarginal ? `The ${analysis.shadeSide} side receives slightly less modeled sun. The difference is small, so either side should feel nearly the same.` : `The sun lands mostly on the ${analysis.shadeSide === 'left' ? 'right' : 'left'} side of the vehicle, so the ${analysis.shadeSide} side gets the calmer ride.`;
@@ -550,13 +538,6 @@ async function calculateTrip({ sample = false } = {}) {
     showError(error.message || 'Something went wrong while planning that trip.');
   }
 }
-
-$('.mode-toggle').addEventListener('click', (event) => {
-  const button = event.target.closest('.mode-option');
-  if (!button) return;
-  selectedMode = button.dataset.mode;
-  document.querySelectorAll('.mode-option').forEach((item) => item.classList.toggle('is-active', item === button));
-});
 
 $('#trip-form').addEventListener('submit', (event) => {
   event.preventDefault();

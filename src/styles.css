@@ -67,16 +67,11 @@ h1 em, h2 em { font-family: 'Playfair Display', Georgia, serif; font-weight: 600
 .field-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .origin-icon { color: var(--teal-deep); }
 .destination-icon { color: var(--rose); }
-.planner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
+.planner-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 22px; }
 .compact-field { padding: 0 0 9px 0; border-bottom: 1px solid var(--line); }
 .compact-field .field-icon { top: 17px; left: auto; right: 2px; width: 16px; height: 16px; }
 .compact-field .field-label { margin-bottom: 5px; }
 .compact-field input { font-size: 13px; }
-.mode-control .field-label { margin-bottom: 8px; }
-.mode-toggle { display: flex; gap: 4px; padding: 3px; background: var(--paper); border-radius: 5px; }
-.mode-option { min-height: 34px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; border: 0; background: transparent; color: var(--ink-soft); border-radius: 3px; font-size: 12px; transition: all 180ms ease; }
-.mode-option svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mode-option.is-active { background: var(--white); color: var(--ink); box-shadow: 0 2px 6px rgba(33, 56, 59, 0.11); }
 .form-actions { display: flex; align-items: center; gap: 17px; margin-top: 27px; }
 .primary-button { min-height: 47px; padding: 0 16px 0 19px; display: inline-flex; align-items: center; gap: 15px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 600; transition: background 180ms ease, transform 180ms ease; }
 .primary-button:hover { background: var(--teal-deep); transform: translateY(-2px); }

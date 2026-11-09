@@ -1,6 +1,6 @@
 # SunSide — Find the Shady Side of Your Ride
 
-**SunSide is a solar-aware trip planner that tells you whether to sit on the left or right side of a car or bus to avoid direct sunlight during a journey.** Enter an origin, destination, departure time, and travel mode. SunSide traces the route, models the sun’s position along the trip, and recommends the less sunny side of the vehicle.
+**SunSide is a solar-aware trip planner that tells you whether to sit on the left or right side of a road journey to avoid direct sunlight.** Enter an origin, destination, and departure time. SunSide traces the route, models the sun’s position along the trip, and recommends the less sunny side of the vehicle.
 
 Live demo: **[sunside-yfhwmgjq.manus.space](https://sunside-yfhwmgjq.manus.space)**
 
@@ -10,7 +10,7 @@ Live demo: **[sunside-yfhwmgjq.manus.space](https://sunside-yfhwmgjq.manus.space
 
 ## The problem
 
-When you travel across a city, the sunny side of the vehicle can make a noticeable difference. A rider may want to know **which side of the car to sit on to avoid the sun**, **which side of a bus is shaded**, or **whether the left or right window will be more comfortable for a particular commute**. Typical navigation apps calculate distance and arrival time, but they do not answer this seating-side question.
+When you travel across a city, the sunny side of the vehicle can make a noticeable difference. A rider may want to know **which side of a car or bus to sit on to avoid the sun** or **whether the left or right window will be more comfortable for a particular commute**. Typical navigation apps calculate distance and arrival time, but they do not answer this seating-side question.
 
 SunSide is designed for short daily trips such as **home to office**, apartment to campus, hotel to airport, station to workplace, and other local car or bus journeys. It is especially useful in hot, sunny cities where a few minutes of direct window light can matter.
 
@@ -20,7 +20,7 @@ SunSide is designed for short daily trips such as **home to office**, apartment 
 - Shows ranked place suggestions with the full locality and address so users can choose the exact same-name building or hotel.
 - Requires an explicit place selection before routing; SunSide never silently chooses the first ambiguous match.
 - Uses the departure date and time to model the sun during the actual journey.
-- Supports car and bus travel modes. The current free routing fallback uses road geometry for both modes and clearly labels the estimate.
+- Focuses on the road geometry and sunlight direction shared by ordinary car and bus journeys; it does not pretend to provide transit schedules or vehicle-specific behavior.
 - Calculates a drivable route and estimated travel time.
 - Analyzes sun elevation, sun azimuth, route bearing, and elapsed trip time in multiple checkpoints.
 - Recommends the **left side**, **right side**, or **no clear winner**.
