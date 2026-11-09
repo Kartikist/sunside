@@ -131,8 +131,8 @@ app.innerHTML = `
             </div>
             <div class="metrics-row">
               <div><strong id="metric-duration">—</strong><span>trip time</span></div>
-              <div><strong id="metric-coverage">—</strong><span>route analyzed</span></div>
-              <div><strong id="metric-sun">—</strong><span>sun angle</span></div>
+              <div><strong id="metric-coverage">—</strong><span>sun signal</span></div>
+              <div><strong id="metric-sun">—</strong><span>sun elevation</span></div>
             </div>
             <div class="recommendation-footnote">${icons.info}<span>We model the sun in 10–15 minute slices. A small edge means either side should feel nearly the same.</span></div>
           </aside>
@@ -494,15 +494,15 @@ function renderResults(origin, destination, route, analysis, departureDate) {
   $('#recommendation-mode').textContent = modeLabel;
   $('#recommendation-icon').innerHTML = icons.sun;
   $('#recommendation-title').textContent = recommendation;
-  $('#recommendation-copy').textContent = isMarginal ? `The ${analysis.shadeSide} side receives slightly less modeled sun. The difference is small, so either side should feel nearly the same.` : `The sun lands mostly on the ${analysis.shadeSide === 'left' ? 'right' : 'left'} side of the vehicle, so the ${analysis.shadeSide} side gets the calmer ride.`;
+  $('#recommendation-copy').textContent = analysis.coverage === 0 ? `The sun was below the horizon or too low to favor a window during this trip. Either side is fine; ${analysis.shadeSide} is the default tie-breaker.` : isMarginal ? `The ${analysis.shadeSide} side receives slightly less modeled sun. The difference is small, so either side should feel nearly the same.` : `The sun lands mostly on the ${analysis.shadeSide === 'left' ? 'right' : 'left'} side of the vehicle, so the ${analysis.shadeSide} side gets the calmer ride.`;
   $('#confidence-value').textContent = `${analysis.advantage}% edge`;
   $('#confidence-bar').style.width = `${Math.max(8, Math.min(100, analysis.advantage))}%`;
-  $('#confidence-copy').textContent = isMarginal ? `${analysis.coverage}% analyzed · practically even` : `${analysis.coverage}% of the route had a meaningful side signal`;
+  $('#confidence-copy').textContent = analysis.coverage === 0 ? 'No meaningful side-on sunlight detected' : isMarginal ? `${analysis.coverage}% meaningful signal · practically even` : `${analysis.coverage}% of the route had a meaningful side signal`;
   $('#metric-duration').textContent = durationLabel(route.duration);
   $('#metric-coverage').textContent = `${analysis.coverage}%`;
-  $('#metric-sun').textContent = `${Math.round(analysis.avgElevation)}°`;
+  $('#metric-sun').textContent = analysis.avgElevation < 1 ? 'Low' : `${Math.round(analysis.avgElevation)}°`;
   $('#analysis-date').textContent = formatDate(departureDate);
-  $('#analysis-explanation').textContent = isMarginal ? `Across ${analysis.slices} checkpoints, the ${analysis.shadeSide} side received ${analysis.advantage}% less modeled sun. That difference is not meaningful in practice, so either side is fine; ${analysis.shadeSide} is the slight mathematical edge.` : `Across ${analysis.slices} checkpoints, the sun favored the ${sunlightSide} window often enough to give the ${analysis.shadeSide} side a ${analysis.advantage}% shade edge. Higher sun angles and front/back light were treated as neutral.`;
+  $('#analysis-explanation').textContent = analysis.coverage === 0 ? `We checked ${analysis.slices} checkpoints, but the sun was below the horizon or too low/front-facing to create a meaningful side signal. Either side is fine; ${analysis.shadeSide} is the default tie-breaker.` : isMarginal ? `Across ${analysis.slices} checkpoints, the ${analysis.shadeSide} side received ${analysis.advantage}% less modeled sun. That difference is not meaningful in practice, so either side is fine; ${analysis.shadeSide} is the slight mathematical edge.` : `Across ${analysis.slices} checkpoints, the sun favored the ${sunlightSide} window often enough to give the ${analysis.shadeSide} side a ${analysis.advantage}% shade edge. Higher sun angles and front/back light were treated as neutral.`;
   renderTimeline(analysis.observations);
   renderMap(origin, destination, route);
   setStatus('results');
